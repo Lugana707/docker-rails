@@ -15,7 +15,7 @@ RUN unset BUNDLE_BIN
 ENV GEM_HOME "/usr/local/bundle"
 ENV PATH $GEM_HOME/bin:$GEM_HOME/gems/bin:$PATH
 
-RUN gem install bundler -v 1.22.0
+RUN gem install bundler -v 1.3.0
 # https://stackoverflow.com/questions/3116015/how-to-install-postgresqls-pg-gem-on-ubuntu#3116128
 RUN gem install pg -- --with-pg-lib=/usr/lib
 
