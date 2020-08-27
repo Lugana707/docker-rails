@@ -16,6 +16,9 @@ ENV NODE_PATH $NVM_DIR/v$NODE_VERSION/lib/node_modules
 ENV PATH      $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 RUN source ~/.bashrc && node -v
 
+RUN ln -s /usr/local/nvm/versions/node/$NODE_VERSION/bin/node /usr/bin/node
+RUN ln -s /usr/local/nvm/versions/node/$NODE_VERSION/bin/npm /usr/bin/npm
+
 # https://classic.yarnpkg.com/en/docs/install#debian-stable
 RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - \
   && echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list \
