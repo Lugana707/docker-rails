@@ -1,7 +1,20 @@
 FROM ruby:2.6.5
 
-# https://github.com/nodesource/distributions/blob/master/README.md#debinstall
-RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && apt-get install -yqq nodejs
+# Replace shell with bash so we can source files
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+
+# https://stackoverflow.com/questions/25899912/how-to-install-nvm-in-docker
+ENV NVM_DIR /usr/local/nvm
+ENV NODE_VERSION v12.8.1
+RUN mkdir $NVM_DIR \
+  && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash \
+  && source $NVM_DIR/nvm.sh \
+  && nvm install $NODE_VERSION \
+  && nvm alias default $NODE_VERSION \
+  && nvm use default
+ENV NODE_PATH $NVM_DIR/v$NODE_VERSION/lib/node_modules
+ENV PATH      $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
+RUN source ~/.bashrc && node -v
 
 # https://classic.yarnpkg.com/en/docs/install#debian-stable
 RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - \
