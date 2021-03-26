@@ -1,28 +1,11 @@
-FROM ruby:2.6.5
+# syntax=docker/dockerfile:experimental
 
-# Replace shell with bash so we can source files
-RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+FROM ruby:2.6.6-alpine3.13
 
-# https://stackoverflow.com/questions/25899912/how-to-install-nvm-in-docker
-ENV NVM_DIR /usr/local/nvm
-ENV NODE_VERSION v12.8.1
-RUN mkdir $NVM_DIR \
-  && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash \
-  && source $NVM_DIR/nvm.sh \
-  && nvm install $NODE_VERSION \
-  && nvm alias default $NODE_VERSION \
-  && nvm use default
-ENV NODE_PATH $NVM_DIR/v$NODE_VERSION/lib/node_modules
-ENV PATH      $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
-RUN source ~/.bashrc && node -v
-
-RUN ln -s /usr/local/nvm/versions/node/$NODE_VERSION/bin/node /usr/bin/node
-RUN ln -s /usr/local/nvm/versions/node/$NODE_VERSION/bin/npm /usr/bin/npm
-
-# https://classic.yarnpkg.com/en/docs/install#debian-stable
-RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - \
-  && echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list \
-  && apt-get update && apt-get install -yqq --no-install-recommends yarn
+ENV NODE_VERSION 14.16.0-r0
+RUN \
+  apk add --update nodejs=${NODE_VERSION} npm=${NODE_VERSION} \
+  && npm install --global yarn
 
 # Don't inherit local env settings when setting up bundler
 RUN unset BUNDLE_PATH
@@ -31,9 +14,32 @@ RUN unset BUNDLE_BIN
 ENV GEM_HOME "/usr/local/bundle"
 ENV PATH $GEM_HOME/bin:$GEM_HOME/gems/bin:$PATH
 
-RUN gem install bundler -v 1.3.0
-# https://stackoverflow.com/questions/3116015/how-to-install-postgresqls-pg-gem-on-ubuntu#3116128
+RUN mkdir -p ${GEM_HOME} \
+  && gem install bundler -v 2.1.4
+# https://jer-k.github.io/update-gem-dockerfile-alpine-linux
+RUN apk --update add --virtual \
+  run-dependencies \
+  build-base \
+  postgresql-client \
+  postgresql-dev
 RUN gem install pg -- --with-pg-lib=/usr/lib
+
+# https://github.com/rmagick/rmagick/issues/834
+RUN apk add --update --no-cache \
+  build-base \
+  imagemagick6 \
+  imagemagick6-c++ \
+  imagemagick6-dev \
+  imagemagick6-libs
+
+# Need git for some gems
+RUN apk add --update --no-cache git
+
+# Upgrade to security issues
+# https://stackoverflow.com/questions/61875869/ubuntu-20-04-upgrade-python-missing-libffi-so-6#61876234
+RUN \
+  apk add python3=3.8.8-r0 \
+  && ln -s /usr/lib/libffi.so.7 /usr/lib/libffi.so.6
 
 # https://github.com/locomotivecms/wagon/issues/340
 WORKDIR /
