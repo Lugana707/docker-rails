@@ -67,13 +67,19 @@ jobs:
           exit-code: 1
           severity: CRITICAL
           format: table
+      - name: Define IMAGE_TAG (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
+        run: echo "IMAGE_TAG=latest-${{ matrix.architecture }}" >> $GITHUB_ENV
+      - name: Define IMAGE_TAG (tags)
+        if: ${{ contains(github.ref, 'tags') && contains(github.ref, matrix.architecture) }}
+        run: echo "IMAGE_TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
       - name: Build and publish Docker Image to GitHub Packages Registry
         uses: VaultVulp/gp-docker-action@1.1.8
         if: ${{ env.IS_DEPLOYMENT == 'true' }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           image-name: rails
-          image-tag: latest-${{ matrix.architecture }}
+          image-tag: ${{ env.IMAGE_TAG }}
           dockerfile: Dockerfile.${{ matrix.architecture }}
           custom-args: --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from=${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
       - name: Update Deployment Status (Success)
