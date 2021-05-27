@@ -68,10 +68,10 @@ jobs:
           severity: CRITICAL
           format: table
       - name: Define ARCHITECTURE_NAME (master)
-        if: ${{ github.ref == 'refs/heads/master' }}
+        if: ${{ github.ref == 'refs/heads/master' || github.event_name == 'pull_request' }}
         run: echo "ARCHITECTURE_NAME=latest-${{ matrix.architecture }}" >> $GITHUB_ENV
       - name: Define ARCHITECTURE_NAME (tags)
-        if: ${{ github.ref != 'refs/heads/master' && (contains(github.ref, 'tags') && contains(github.ref, matrix.architecture)) }}
+        if: ${{ github.ref != 'refs/heads/master' && (contains(github.ref, 'tags') && contains(github.ref, matrix.architecture)) || github.event_name == 'pull_request' }}
         run: echo "ARCHITECTURE_NAME=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
       - name: Build and publish Docker Image to GitHub Packages Registry
         uses: VaultVulp/gp-docker-action@1.1.8
