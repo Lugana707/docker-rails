@@ -71,7 +71,7 @@ jobs:
         if: ${{ github.ref == 'refs/heads/master' }}
         run: echo "IMAGE_TAG=latest-${{ matrix.architecture }}" >> $GITHUB_ENV
       - name: Define IMAGE_TAG (tags)
-        if: ${{ github.ref != 'refs/heads/master' && (contains(github.ref, 'tags') && contains(github.ref, matrix.architecture)) }}
+        if: ${{ contains(github.ref, 'tags') && contains(github.ref, matrix.architecture) }}
         run: echo "IMAGE_TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
       - name: Build and publish Docker Image to GitHub Packages Registry
         uses: VaultVulp/gp-docker-action@1.1.8
