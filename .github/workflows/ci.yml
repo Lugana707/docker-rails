@@ -82,6 +82,16 @@ jobs:
           image-tag: ${{ env.IMAGE_TAG }}
           dockerfile: Dockerfile.${{ matrix.architecture }}
           custom-args: --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from=${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
+      - name: Publish Docker
+        uses: elgohr/Publish-Docker-Github-Action@3.04
+        if: ${{ env.IS_DEPLOYMENT == 'true' }}
+        with:
+          name: careerjsm/rails
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          tags: ${{ env.IMAGE_TAG }}
+          buildoptions: --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from=${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
+          no_push: true
       - name: Update Deployment Status (Success)
         if: ${{ env.IS_DEPLOYMENT == 'true' && success() }}
         uses: chrnorm/deployment-status@releases/v1
