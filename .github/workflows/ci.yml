@@ -84,7 +84,7 @@ jobs:
           custom-args: --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from=${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
       - name: Publish Docker
         uses: elgohr/Publish-Docker-Github-Action@3.04
-        if: ${{ env.IS_DEPLOYMENT == 'true' }}
+        if: ${{ true || env.IS_DEPLOYMENT == 'true' }}
         with:
           name: careerjsm/rails
           username: ${{ secrets.DOCKER_USERNAME }}
