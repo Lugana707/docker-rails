@@ -5,13 +5,13 @@ on:
   push:
     branches:
       - master
-    tags:
-      - "*-bullseye-*"
-      - "*-debian-*"
-      - "*-alpine*-*"
+  release:
+    types:
+      - created
 
 env:
   DOCKER_BUILDKIT: 1
+  RELEASE_NAME: ${{ github.event.release.tag_name }}
 
 jobs:
   build-test-publish:
@@ -23,7 +23,7 @@ jobs:
         architecture: [alpine, debian, bullseye]
     steps:
       - name: Check if deployment
-        if: ${{ github.ref == 'refs/heads/master' || (contains(github.ref, 'tags') && contains(github.ref, matrix.architecture)) }}
+        if: ${{ github.ref == 'refs/heads/master' || contains(env.RELEASE_NAME, matrix.architecture) }}
         run: echo "IS_DEPLOYMENT=true" >> $GITHUB_ENV
       - name: Deployment Status
         id: deployment
@@ -71,8 +71,8 @@ jobs:
         if: ${{ github.ref == 'refs/heads/master' }}
         run: echo "IMAGE_TAG=latest-${{ matrix.architecture }}" >> $GITHUB_ENV
       - name: Define IMAGE_TAG (tags)
-        if: ${{ contains(github.ref, 'tags') && contains(github.ref, matrix.architecture) }}
-        run: echo "IMAGE_TAG=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+        if: ${{ contains(env.RELEASE_NAME, matrix.architecture) }}
+        run: echo "IMAGE_TAG=${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
       - name: Build and publish Docker Image to GitHub Packages Registry
         uses: VaultVulp/gp-docker-action@1.1.8
         if: ${{ env.IS_DEPLOYMENT == 'true' }}
