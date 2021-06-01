@@ -1,49 +1,104 @@
-name: CI
+name: CI & CD
 
 on:
   pull_request:
   push:
     branches:
       - master
+  release:
+    types:
+      - created
 
 env:
   DOCKER_BUILDKIT: 1
+  RELEASE_NAME: ${{ github.event.release.tag_name }}
 
 jobs:
-  vulnerability-scanning:
-    name: Vulnerability Scanning
+  build-test-publish:
+    name: Build, Test, & Publish
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       matrix:
-        architecture: [alpine, debian]
-    env:
-      IMAGE_NAME: ${{ github.repository }}:latest
+        architecture: [alpine, debian, bullseye]
     steps:
+      - name: Check if deployment
+        if: ${{ github.ref == 'refs/heads/master' || contains(env.RELEASE_NAME, matrix.architecture) }}
+        run: echo "IS_DEPLOYMENT=true" >> $GITHUB_ENV
+      - name: Deployment Status
+        id: deployment
+        if: ${{ env.IS_DEPLOYMENT == 'true' }}
+        uses: chrnorm/deployment-action@v1.2.0
+        with:
+          token: ${{ github.token }}
+          environment: ${{ matrix.architecture }}
       - name: Checkout
         uses: actions/checkout@v2.3.4
       - name: Get Image Name
-        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | awk '{print tolower($0)}')/default" >> $GITHUB_ENV
+        run: echo "IMAGE_NAME=$(echo '${{ github.repository }}' | awk '{print tolower($0)}')/${{ matrix.architecture }}" >> $GITHUB_ENV
       - name: Build & Test
         id: build-docker-image-using-cache
         uses: whoan/docker-build-with-cache-action@v5.11.0
         timeout-minutes: 5
         with:
           username: ${{ github.actor }}
-          password: "${{ secrets.GITHUB_TOKEN }}"
+          password: ${{ secrets.GITHUB_TOKEN }}
           registry: docker.pkg.github.com
           image_name: ${{ env.IMAGE_NAME }}
           image_tag: ${{ github.sha }}
           push_git_tag: true
           dockerfile: Dockerfile.${{ matrix.architecture }}
-          build_extra_args: "--build-arg BUILDKIT_INLINE_CACHE=1"
-      - name: Scan Image for Vulnerabilities
-        uses: docker://docker.io/aquasec/trivy:0.2.1
-        timeout-minutes: 5
+          build_extra_args: --build-arg BUILDKIT_INLINE_CACHE=1
+      - name: Aqua Security Trivy
+        uses: aquasecurity/trivy-action@0.0.17
         with:
-          args: --cache-dir /var/lib/trivy --no-progress ${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
-      - name: Scan Image for Vulnerabilities
-        uses: docker://docker.io/aquasec/trivy:0.2.1
-        timeout-minutes: 5
+          image-ref: ${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
+          format: template
+          template: "@/contrib/sarif.tpl"
+          output: trivy-results.sarif
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v1
         with:
-          args: --cache-dir /var/lib/trivy --severity "CRITICAL" --exit-code 1 --no-progress ${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
+          sarif_file: trivy-results.sarif
+      - name: Aqua Security Trivy
+        uses: aquasecurity/trivy-action@0.0.17
+        with:
+          image-ref: ${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
+          exit-code: 1
+          severity: CRITICAL
+          format: table
+      - name: Define IMAGE_TAG (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
+        run: echo "IMAGE_TAG=latest-${{ matrix.architecture }}" >> $GITHUB_ENV
+      - name: Define IMAGE_TAG (tags)
+        if: ${{ contains(env.RELEASE_NAME, matrix.architecture) }}
+        run: echo "IMAGE_TAG=${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
+      - name: Build and publish Docker Image to GitHub Packages Registry
+        uses: VaultVulp/gp-docker-action@1.1.8
+        if: ${{ env.IS_DEPLOYMENT == 'true' }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          image-name: rails
+          image-tag: ${{ env.IMAGE_TAG }}
+          dockerfile: Dockerfile.${{ matrix.architecture }}
+          custom-args: --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from=${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }}
+      - name: Publish to Docker Hub
+        if: ${{ env.IS_DEPLOYMENT == 'true' }}
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login --username ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker tag ${{ steps.build-docker-image-using-cache.outputs.FULL_IMAGE_NAME }}:${{ github.sha }} ${{ secrets.DOCKER_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          docker push ${{ secrets.DOCKER_REPOSITORY }}:${{ env.IMAGE_TAG }}
+      - name: Update Deployment Status (Success)
+        if: ${{ env.IS_DEPLOYMENT == 'true' && success() }}
+        uses: chrnorm/deployment-status@releases/v1
+        with:
+          token: ${{ github.token }}
+          state: success
+          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
+      - name: Update Deployment Status (Failure)
+        if: ${{ env.IS_DEPLOYMENT == 'true' && (failure() || cancelled()) }}
+        uses: chrnorm/deployment-status@releases/v1
+        with:
+          token: ${{ github.token }}
+          state: failure
+          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
